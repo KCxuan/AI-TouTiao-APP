@@ -96,12 +96,12 @@ select {
 }
 
 .btn-primary {
-  background-color: var(--accent);
+  background-color: #9d4b32;
   color: #ffffff;
 }
 
 .btn-primary:hover {
-  background-color: var(--accent-hover);
+  background-color: #7f3825;
 }
 
 .btn-primary:disabled {

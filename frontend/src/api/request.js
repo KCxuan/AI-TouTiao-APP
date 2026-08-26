@@ -22,9 +22,12 @@ function extractErrorMessage(error) {
   const resData = error.response?.data
   if (resData) {
     if (resData.message) return resData.message
+    if (Array.isArray(resData.detail)) {
+      return resData.detail.map((item) => item.msg).join('；')
+    }
     if (resData.detail) return resData.detail
   }
-  if (error.code === 'ECONNABORTED') return '请求超时，请检查后端服务是否启动'
+  if (error.code === 'ECONNABORTED') return '请求处理超时，请稍后重试'
   if (!error.response) return '网络异常，无法连接后端服务（localhost:8000）'
   return `请求失败（HTTP ${error.response.status}）`
 }

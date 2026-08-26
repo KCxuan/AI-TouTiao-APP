@@ -56,13 +56,20 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
         <RouterLink to="/mine" class="nav-link">我的发布</RouterLink>
         <RouterLink to="/favorites" class="nav-link">收藏</RouterLink>
         <RouterLink to="/history" class="nav-link">浏览历史</RouterLink>
-        <RouterLink to="/ai" class="nav-link">AI 问答</RouterLink>
+        <RouterLink to="/ai" class="nav-link">AI 研究</RouterLink>
       </nav>
 
       <div class="nav-right">
         <template v-if="userStore.isLoggedIn">
           <div class="user-menu" ref="menuRef">
-            <button class="avatar-btn" @click="toggleMenu" :title="userStore.displayName">
+            <button
+              class="avatar-btn"
+              :title="userStore.displayName"
+              aria-label="打开用户菜单"
+              aria-haspopup="menu"
+              :aria-expanded="menuOpen"
+              @click="toggleMenu"
+            >
               <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-img" />
               <span v-else class="avatar-fallback">{{ initial }}</span>
             </button>
@@ -286,7 +293,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
 .footer {
   border-top: 1px solid var(--border);
   padding: 20px 0;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 13px;
   text-align: center;
 }
@@ -332,5 +339,54 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
 .toast-leave-to {
   opacity: 0;
   transform: translateY(-8px);
+}
+
+@media (max-width: 900px) {
+  .navbar-inner {
+    height: auto;
+    min-height: 64px;
+    padding-top: 12px;
+    padding-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+  }
+
+  .nav-links {
+    order: 3;
+    flex: 0 0 100%;
+    width: 100%;
+    padding-bottom: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-link {
+    flex: 0 0 auto;
+    padding: 6px 11px;
+    white-space: nowrap;
+  }
+
+  .nav-right {
+    margin-left: auto;
+  }
+
+  .nav-right .btn {
+    padding: 8px 13px;
+    font-size: 12px;
+  }
+
+  .page-main {
+    padding: 20px 0 40px;
+  }
+}
+
+@media (max-width: 420px) {
+  .logo-text {
+    font-size: 18px;
+  }
 }
 </style>
