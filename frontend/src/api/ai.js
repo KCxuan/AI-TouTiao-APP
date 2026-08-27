@@ -31,6 +31,22 @@ export async function autoWithAI(message, history = []) {
 }
 
 /**
+ * 读取当前登录用户应显示的研究：
+ * 优先待审核草稿，否则最近一份已完成报告。
+ * 没有可显示任务时返回 null。
+ */
+export async function getCurrentResearch() {
+  const response = await request.get('/api/ai/research/current')
+  return response.data
+}
+
+/** 清空当前用户可恢复的研究记录（待审核 + 已完成）。 */
+export async function clearCurrentResearch() {
+  const response = await request.delete('/api/ai/research/current')
+  return response.data
+}
+
+/**
  * 启动一次新的新闻研究，返回草稿与 LangGraph thread_id。
  */
 export async function startResearch(userInput) {

@@ -2,7 +2,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.news import Category
 from models.news import News
-from sqlalchemy import select, func, Update, delete
+from sqlalchemy import select, func, Update, delete, or_, case
 from fastapi import HTTPException
 from cache.news_cache import get_cached_categories, set_cached_categories, get_cache_news_list, set_cached_news_list, get_cached_news_detail, set_cached_news_detail,get_cached_related_news, set_cached_related_news, clear_news_list_cache, clear_related_news_by_category, clear_news_detail_cache, clear_all_related_news_cache
 from fastapi.encoders import jsonable_encoder
@@ -218,6 +218,69 @@ async def delete_news(db: AsyncSession, news_id: int, user_id: int):
 
     return news_item
 
+
+# 搜索新闻
+def _escape_like(keyword: str) -> str:
+    """避免用户输入 %、_ 被当成 SQL LIKE 通配符。"""
+    return (
+        keyword.replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+
+
+async def search_news_by_keyword(
+    db: AsyncSession,
+    keyword: str,
+    category_id: int | None = None,
+    skip: int = 0,
+    limit: int = 10,
+):
+    """
+    站内关键词搜索。人和 Agent 以后共用这一份查询。
+    只匹配 title / description，不搜正文，也不走缓存。
+    """
+    pattern = f"%{_escape_like(keyword.strip())}%"
+    title_match = News.title.like(pattern, escape="\\")
+    description_match = News.description.like(pattern, escape="\\")
+
+    filters = [or_(title_match, description_match)]
+    if category_id is not None:
+        filters.append(News.category_id == category_id)
+
+    stmt = (
+        select(News)
+        .where(*filters)
+        .order_by(
+            case((title_match, 0), else_=1),
+            News.publish_time.desc(),
+            News.id.desc(),
+        )
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def get_search_news_count(
+    db: AsyncSession,
+    keyword: str,
+    category_id: int | None = None,
+):
+    pattern = f"%{_escape_like(keyword.strip())}%"
+    filters = [
+        or_(
+            News.title.like(pattern, escape="\\"),
+            News.description.like(pattern, escape="\\"),
+        )
+    ]
+    if category_id is not None:
+        filters.append(News.category_id == category_id)
+
+    stmt = select(func.count(News.id)).where(*filters)
+    result = await db.execute(stmt)
+    return result.scalars().one()
 
 
 

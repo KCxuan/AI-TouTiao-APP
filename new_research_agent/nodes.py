@@ -10,6 +10,9 @@ from new_research_agent.research_planner import (
 )
 import re
 from new_research_agent.llm import model
+from new_research_agent.internal_search import (
+    search_internal_news,
+)
 
 def analyze_research_goal(
     state: ResearchState,
@@ -38,7 +41,8 @@ JSON 格式必须是：
     "研究问题2",
     "研究问题3"
   ],
-  "current_query": "第一轮新闻搜索词"
+  "current_query": "给站外搜索的一句自然语言查询",
+  "internal_keywords": ["实体短词1", "实体短词2"]
 }
 
 要求：
@@ -46,8 +50,14 @@ JSON 格式必须是：
 1. research_goal 必须保留用户指定的时间、地区和对象。
 2. research_questions 必须正好有三个，并且互不重复。
 3. 问题应覆盖主要事件、不同来源观点和可能影响。
-4. current_query 应适合直接交给新闻搜索工具。
-5. 不要在结果中回答这些研究问题。
+4. current_query 是一句给站外新闻搜索用的自然语言查询，
+   可以包含对象和事件，例如「C919飞机发展历程」。
+5. internal_keywords 是给站内标题匹配用的实体短词，
+   只放产品名、型号、机构名、人名、地名，
+   1 到 5 个；不要「发展」「历程」「研究」「新闻」
+   这类抽象词。例如用户问 C919 发展历程时，
+   应输出 ["C919"] 或 ["C919", "中国商飞"]。
+6. 不要在结果中回答这些研究问题。
 """,
             ),
             (
@@ -63,6 +73,7 @@ JSON 格式必须是：
             plan.research_questions
         ),
         "current_query": plan.current_query,
+        "internal_keywords": plan.internal_keywords,
 
         # 如果是 change_goal 回来的，
         # 表示新的研究方向已经分析完成。
@@ -74,15 +85,43 @@ JSON 格式必须是：
 def search_news(
     state: ResearchState,
 ) -> ResearchState:
-    """执行一轮搜索，去重后写入共享状态。"""
+    """先搜站内新闻，不足 5 条再用 Tavily 补齐，去重后写入共享状态。"""
 
     current_query = state["current_query"]
+    internal_keywords = list(state.get("internal_keywords") or [])
     current_round = state.get("search_round", 0) + 1
 
-    search_results = news_search_tool.search(
-        query=current_query,
-        max_results=5,
-    )
+    # 规划漏给实体词时，至少从用户原话里抽出 C919 这类型号。
+    if not internal_keywords:
+        internal_keywords = re.findall(
+            r"[A-Za-z0-9]{2,}",
+            state.get("user_input") or "",
+        )
+
+    results_per_round = 5
+
+    try:
+        internal_results = search_internal_news(
+            keywords=internal_keywords,
+            max_results=results_per_round,
+        )
+    except Exception as exc:
+        # 站内库异常时不要整轮研究失败，退回只搜站外。
+        print(f"站内搜索失败，回退到站外：{exc}")
+        internal_results = []
+
+    remaining = results_per_round - len(internal_results)
+    external_results = []
+    if remaining > 0:
+        external_results = news_search_tool.search(
+            query=current_query,
+            max_results=remaining,
+        )
+
+    search_results = [
+        *internal_results,
+        *external_results,
+    ]
 
     existing_sources = state.get("sources", [])
 
@@ -131,6 +170,7 @@ def search_news(
             *new_sources,
         ],
         "search_round": current_round,
+        "internal_keywords": internal_keywords,
         "review_action": None,
         "review_feedback": None,
     }
@@ -265,6 +305,8 @@ JSON 格式必须是：
 
 6. insufficient 时，next_query 必须针对最重要的
    证据缺口，并且不能重复 used_queries。
+   next_query 是给站外新闻搜索的一句自然语言查询，
+   不要拆成单个抽象词。
 
 7. sufficient 时，evidence_gaps 应为空，
    next_query 必须为 null。
@@ -634,6 +676,7 @@ def human_review(
             "sources": [],
             "search_round": 0,
             "max_search_rounds": 3,
+            "internal_keywords": [],
             "evidence_status": "unchecked",
             "evidence_gaps": [],
             "source_conflicts": [],

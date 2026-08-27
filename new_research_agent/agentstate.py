@@ -12,7 +12,10 @@ class ResearchState(TypedDict, total=False):
     research_questions: list[str]
 
     # 二、新闻搜索循环
+    # 站外 Tavily 用的自然语言查询；每轮可更新。
     current_query: str
+    # 站内 LIKE 用的实体短词；规划一次生成，后续轮次复用。
+    internal_keywords: list[str]
 
     """
     # 使用 add reducer：

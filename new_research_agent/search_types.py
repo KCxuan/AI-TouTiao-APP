@@ -1,4 +1,4 @@
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict, NotRequired
 
 
 class SearchResult(TypedDict):
@@ -9,3 +9,4 @@ class SearchResult(TypedDict):
     snippet: str
     publisher: str | None
     published_at: str | None
+    source_type: NotRequired[str]

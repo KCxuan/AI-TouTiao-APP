@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { getCategories, getNewsList } from '../api/news'
+import { ref, computed, onMounted } from 'vue'
+import { getCategories, getNewsList, searchNews } from '../api/news'
 import { pick, formatTime, formatViews } from '../utils/format'
 import { toast } from '../composables/toast'
 
@@ -17,6 +17,15 @@ const loadingCategories = ref(false)
 const loadingList = ref(false)
 const loadingMore = ref(false)
 const listError = ref('')
+
+const keywordInput = ref('')
+const activeKeyword = ref('')
+const onlyCurrentCategory = ref(false)
+const isSearchMode = computed(() => activeKeyword.value.length > 0)
+
+function searchCategoryId() {
+  return onlyCurrentCategory.value ? activeCategoryId.value : null
+}
 
 onMounted(async () => {
   loadingCategories.value = true
@@ -35,6 +44,10 @@ onMounted(async () => {
 })
 
 async function loadList() {
+  if (isSearchMode.value) {
+    await loadSearch()
+    return
+  }
   if (activeCategoryId.value === null) return
   listError.value = ''
   loadingList.value = true
@@ -53,12 +66,65 @@ async function loadList() {
   }
 }
 
+async function loadSearch() {
+  if (!activeKeyword.value) return
+  listError.value = ''
+  loadingList.value = true
+  try {
+    page.value = 1
+    const body = await searchNews(
+      activeKeyword.value,
+      1,
+      PAGE_SIZE,
+      searchCategoryId()
+    )
+    const data = body.data || {}
+    newsList.value = data.list || []
+    total.value = data.total || 0
+    hasMore.value = !!data.hasMore
+  } catch (e) {
+    listError.value = e.message
+    newsList.value = []
+  } finally {
+    loadingList.value = false
+  }
+}
+
+async function handleSearch() {
+  const keyword = keywordInput.value.trim()
+  if (!keyword) {
+    toast('请输入搜索关键词', 'error')
+    return
+  }
+  activeKeyword.value = keyword
+  await loadSearch()
+}
+
+function clearSearch() {
+  keywordInput.value = ''
+  activeKeyword.value = ''
+  loadList()
+}
+
+function handleScopeChange() {
+  if (isSearchMode.value) {
+    loadSearch()
+  }
+}
+
 async function loadMore() {
   if (!hasMore.value || loadingMore.value) return
   loadingMore.value = true
   try {
     const nextPage = page.value + 1
-    const body = await getNewsList(activeCategoryId.value, nextPage, PAGE_SIZE)
+    const body = isSearchMode.value
+      ? await searchNews(
+          activeKeyword.value,
+          nextPage,
+          PAGE_SIZE,
+          searchCategoryId()
+        )
+      : await getNewsList(activeCategoryId.value, nextPage, PAGE_SIZE)
     const data = body.data || {}
     newsList.value.push(...(data.list || []))
     page.value = nextPage
@@ -73,7 +139,13 @@ async function loadMore() {
 async function switchCategory(id) {
   if (id === activeCategoryId.value) return
   activeCategoryId.value = id
-  await loadList()
+  if (isSearchMode.value && onlyCurrentCategory.value) {
+    await loadSearch()
+    return
+  }
+  if (!isSearchMode.value) {
+    await loadList()
+  }
 }
 
 function newsImage(item) {
@@ -83,6 +155,32 @@ function newsImage(item) {
 
 <template>
   <div class="container">
+    <form class="search-bar" @submit.prevent="handleSearch">
+      <input
+        v-model="keywordInput"
+        class="search-input"
+        type="search"
+        maxlength="50"
+        placeholder="搜索新闻标题或简介"
+        aria-label="搜索新闻"
+      />
+      <button class="btn btn-primary" type="submit" :disabled="loadingList">
+        搜索
+      </button>
+      <button
+        v-if="isSearchMode"
+        class="btn btn-outline"
+        type="button"
+        @click="clearSearch"
+      >
+        清除
+      </button>
+      <label class="search-scope">
+        <input v-model="onlyCurrentCategory" type="checkbox" @change="handleScopeChange" />
+        仅当前分类
+      </label>
+    </form>
+
     <!-- 分类 Tab -->
     <div class="category-bar">
       <div v-if="loadingCategories" class="loading-block" style="padding: 16px 0">
@@ -110,7 +208,7 @@ function newsImage(item) {
     <!-- 新闻列表 -->
     <div v-if="loadingList" class="loading-block card">
       <span class="loading-spinner"></span>
-      <p>正在加载新闻列表…</p>
+      <p>{{ isSearchMode ? '正在搜索…' : '正在加载新闻列表…' }}</p>
     </div>
 
     <div v-else-if="listError" class="card placeholder-card">
@@ -121,13 +219,19 @@ function newsImage(item) {
 
     <div v-else-if="newsList.length === 0" class="card placeholder-card">
       <div class="placeholder-icon">🗞️</div>
-      <h3>该分类下暂无新闻</h3>
-      <p>可以去其他分类看看，或在 news 表中添加数据</p>
+      <h3>{{ isSearchMode ? '没有找到相关新闻' : '该分类下暂无新闻' }}</h3>
+      <p v-if="isSearchMode">试试更短的关键词，或取消「仅当前分类」</p>
+      <p v-else>可以去其他分类看看，或在 news 表中添加数据</p>
     </div>
 
     <template v-else>
       <div class="list-meta">
-        共 <strong>{{ total }}</strong> 条新闻
+        <template v-if="isSearchMode">
+          搜索「<strong>{{ activeKeyword }}</strong>」共 <strong>{{ total }}</strong> 条
+        </template>
+        <template v-else>
+          共 <strong>{{ total }}</strong> 条新闻
+        </template>
       </div>
 
       <div class="news-list">
@@ -172,6 +276,38 @@ function newsImage(item) {
 </template>
 
 <style scoped>
+.search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 200px;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-white);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.search-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
 .category-bar {
   margin-bottom: 20px;
 }

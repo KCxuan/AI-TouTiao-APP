@@ -15,7 +15,20 @@ class ResearchPlan(BaseModel):
     )
 
     current_query: str = Field(
-        description="适合新闻搜索的第一条简洁查询词"
+        description=(
+            "给站外新闻搜索用的一句自然语言查询，"
+            "例如「C919飞机发展历程 国产大飞机」"
+        )
+    )
+
+    internal_keywords: list[str] = Field(
+        min_length=1,
+        max_length=5,
+        description=(
+            "给站内标题/摘要 LIKE 用的实体短词，"
+            "如产品名、机构名、人名、地名；"
+            "不要「发展」「历程」「研究」这类抽象词"
+        )
     )
 
 

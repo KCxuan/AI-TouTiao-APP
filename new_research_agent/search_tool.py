@@ -159,7 +159,7 @@ class TavilyNewsSearchTool:
             search_depth="basic",
 
             # 当前新闻研究默认关注最近一周。
-            time_range="week",
+            time_range="year",
 
             max_results=max_results,
         )

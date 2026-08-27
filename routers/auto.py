@@ -1,11 +1,13 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from config.db_config import get_database
+from models.users import User
 from schemas.auto import AutoRequest
-from services.auto_service import (
-    handle_auto_request,
-)
+from services.auto_service import handle_auto_request
+from services.research_service import start_research_for_user
+from utils.auth import get_current_user
 from utils.response import success_response
-
 
 router = APIRouter(
     prefix="/api/ai",
@@ -14,15 +16,25 @@ router = APIRouter(
 
 
 @router.post("/auto")
-def use_auto_mode(
+async def use_auto_mode(
     data: AutoRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_database),
 ):
-    """自动判断并进入合适的处理模式。"""
+    import asyncio
 
-    result = handle_auto_request(
-        message=data.message,
-        history=data.history,
+    result = await asyncio.to_thread(
+        handle_auto_request,
+        data.message,
+        data.history,
     )
+
+    if result.selected_mode == "research":
+        result.research_result = await start_research_for_user(
+            user_id=user.id,
+            user_input=data.message,
+            db=db,
+        )
 
     message = {
         "chat": "已使用普通对话模式",

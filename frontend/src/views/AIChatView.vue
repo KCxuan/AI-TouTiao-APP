@@ -1,8 +1,10 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import {
   autoWithAI,
   chatWithAI,
+  clearCurrentResearch,
+  getCurrentResearch,
   reviewResearch,
   startResearch
 } from '../api/ai'
@@ -87,6 +89,7 @@ const messages = ref([])
 const inputText = ref('')
 const pendingClarification = ref(null)
 const activeResearchMessageId = ref(null)
+const restoring = ref(true)
 
 const scrollEl = ref(null)
 const inputEl = ref(null)
@@ -99,9 +102,14 @@ const activeMode = computed(
 
 const suggestions = computed(() => SUGGESTIONS[selectedMode.value])
 
-const interfaceLocked = computed(() => phase.value !== 'idle')
+const interfaceLocked = computed(
+  () => restoring.value || phase.value !== 'idle'
+)
 
 const inputPlaceholder = computed(() => {
+  if (restoring.value) {
+    return '正在恢复未完成的研究'
+  }
   if (phase.value === 'waiting_review') {
     return '请先审核上方的研究报告草稿'
   }
@@ -197,6 +205,54 @@ function setResearchReply(reply, research, label) {
     phase.value = 'idle'
   }
 }
+
+function restoreResearch(research) {
+  selectedMode.value = 'research'
+
+  const userMessage = {
+    id: nextMessageId(),
+    role: 'user',
+    kind: 'text',
+    content: research.user_input || '（已恢复的研究主题）',
+    historyEligible: false,
+    requestedMode: 'research',
+    modeLabel: '研究'
+  }
+
+  const reply = {
+    id: nextMessageId(),
+    role: 'assistant',
+    kind: 'loading',
+    content: '',
+    historyEligible: false,
+    requestedMode: 'research',
+    resolvedMode: null,
+    label: '深度研究'
+  }
+
+  messages.value = [userMessage, reply]
+  const restoredLabel =
+    research.status === 'completed' ? '深度研究 · 已完成' : '深度研究 · 已恢复'
+  setResearchReply(reply, research, restoredLabel)
+  scrollToBottom()
+}
+
+onMounted(async () => {
+  try {
+    const research = await getCurrentResearch()
+    if (research && research.status === 'waiting_review') {
+      restoreResearch(research)
+      toast('已恢复未完成的研究报告')
+    } else if (research && research.status === 'completed') {
+      restoreResearch(research)
+      toast('已恢复完成的研究报告')
+    }
+  } catch (error) {
+    toast(error.message, 'error')
+  } finally {
+    restoring.value = false
+  }
+})
 
 async function send(text) {
   const content = (text || inputText.value).trim()
@@ -331,7 +387,7 @@ function abandonResearch(message) {
   message.feedback = ''
   activeResearchMessageId.value = null
   phase.value = 'idle'
-  toast('已放弃本次研究')
+  toast('已关闭本页审核。未完成的研究刷新后仍会恢复；新开研究才会放弃旧草稿。')
 }
 
 function actionAllowed(message, action) {
@@ -388,16 +444,29 @@ async function submitReview(message, action = message.pendingAction) {
   }
 }
 
-function clearConversation() {
-  if (interfaceLocked.value) {
-    toast('请先完成当前研究报告的审核', 'error')
+async function clearConversation() {
+  if (restoring.value || phase.value === 'requesting' || phase.value === 'reviewing') {
+    toast('请等待当前请求完成后再清空', 'error')
     return
   }
   if (messages.value.length === 0) return
-  if (window.confirm('确定要清空当前页面中的全部记录吗？')) {
+  if (
+    !window.confirm(
+      '确定清空当前记录吗？未完成和已完成的研究都会从可恢复列表中移除，之后切走再回来不会再显示。'
+    )
+  ) {
+    return
+  }
+
+  try {
+    await clearCurrentResearch()
     messages.value = []
     pendingClarification.value = null
+    activeResearchMessageId.value = null
+    phase.value = 'idle'
     toast('记录已清空')
+  } catch (error) {
+    toast(error.message, 'error')
   }
 }
 
@@ -554,7 +623,12 @@ function parseReport(markdown) {
           <button
             type="button"
             class="clear-button"
-            :disabled="messages.length === 0 || interfaceLocked"
+            :disabled="
+              messages.length === 0 ||
+              restoring ||
+              phase === 'requesting' ||
+              phase === 'reviewing'
+            "
             @click="clearConversation"
           >
             清空记录
@@ -568,7 +642,15 @@ function parseReport(markdown) {
           aria-live="polite"
           :aria-busy="phase === 'requesting' || phase === 'reviewing'"
         >
-          <div v-if="messages.length === 0" class="welcome">
+          <div v-if="restoring" class="welcome">
+            <p class="welcome-number">00 / RESTORE</p>
+            <h2>正在恢复研究报告…</h2>
+            <p class="welcome-description">
+              未完成的审核草稿，或已通过但未清空的报告，都会重新放到这里。
+            </p>
+          </div>
+
+          <div v-else-if="messages.length === 0" class="welcome">
             <p class="welcome-number">01 / ASK</p>
             <h2>今天想弄清哪件事？</h2>
             <p class="welcome-description">{{ activeMode.description }}</p>

@@ -45,6 +45,7 @@ class ResearchResult(BaseModel):
 
     thread_id: str
     status: ResearchStatus
+    user_input: str | None = None
 
     instruction: str | None = None
     draft_report: str | None = None

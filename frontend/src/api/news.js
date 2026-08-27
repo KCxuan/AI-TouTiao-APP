@@ -14,6 +14,16 @@ export function getNewsList(categoryId, page = 1, pageSize = 10) {
   })
 }
 
+// 关键词搜索（分页），返回 { list, total, hasMore, keyword, categoryId }
+// categoryId 不传或传 null 时全站搜索
+export function searchNews(keyword, page = 1, pageSize = 10, categoryId = null) {
+  const params = { q: keyword, page, pageSize }
+  if (categoryId != null) {
+    params.categoryId = categoryId
+  }
+  return request.get('/api/news/search', { params })
+}
+
 // 获取新闻详情，返回含 relatedNews
 export function getNewsDetail(id) {
   return request.get('/api/news/detail', { params: { id } })

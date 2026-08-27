@@ -50,7 +50,8 @@ const routes = [
   {
     path: '/ai',
     name: 'ai-chat',
-    component: () => import('../views/AIChatView.vue')
+    component: () => import('../views/AIChatView.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/:pathMatch(.*)*',

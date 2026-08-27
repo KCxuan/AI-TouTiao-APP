@@ -7,9 +7,7 @@ from schemas.chat import ChatMessage
 from services.chat_service import (
     generate_chat_reply,
 )
-from services.research_service import (
-    start_research,
-)
+
 
 
 AUTO_ROUTE_PROMPT = """
@@ -93,13 +91,9 @@ def handle_auto_request(
         )
 
     if decision.route == "research":
-        research_result = start_research(
-            user_input=message,
-        )
-
+        # 这里先不能启动研究，此时没有user_id，也没有数据库会话
         return AutoResult(
             selected_mode="research",
-            research_result=research_result,
         )
 
     return AutoResult(

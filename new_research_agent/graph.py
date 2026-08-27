@@ -1,4 +1,7 @@
-from langgraph.checkpoint.memory import InMemorySaver
+import sqlite3
+from pathlib import Path
+
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
 from new_research_agent.agentstate import ResearchState
@@ -14,6 +17,17 @@ from new_research_agent.routes import (
     route_after_evidence,
     route_after_review,
 )
+
+def _build_checkpointer() -> SqliteSaver:
+    data_dir = Path("data")
+    data_dir.mkdir(exist_ok=True)
+    conn = sqlite3.connect(
+        str(data_dir / "research_checkpoints.db"),
+        check_same_thread=False,
+    )
+    checkpointer = SqliteSaver(conn)
+    checkpointer.setup()
+    return checkpointer
 
 
 def build_research_graph():
@@ -97,10 +111,9 @@ def build_research_graph():
     )
 
     # interrupt() 需要 checkpointer 保存暂停位置。
-    checkpointer = InMemorySaver()
 
     return builder.compile(
-        checkpointer=checkpointer,
+        checkpointer=_build_checkpointer(),
     )
 
 

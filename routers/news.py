@@ -136,3 +136,43 @@ async def delete_news(
 ):
     deleted_item = await news.delete_news(db, news_id, user.id)
     return success_response("删除新闻成功", deleted_item)
+
+# 添加搜索新闻功能
+@router.get("/search")
+async def search_news(
+    q: str = Query(..., min_length=1, max_length=50, description="搜索关键词"),
+    category_id: int | None = Query(
+        None,
+        description="可选分类ID，不传则全站搜索",
+        alias="categoryId",
+        gt=0,
+    ),
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量", alias="pageSize"),
+    db: AsyncSession = Depends(db_config.get_database),
+):
+    keyword = q.strip()
+    if not keyword:
+        raise HTTPException(status_code=422, detail="搜索关键词不能为空")
+
+    skip = (page - 1) * page_size
+    news_list = await news.search_news_by_keyword(
+        db,
+        keyword=keyword,
+        category_id=category_id,
+        skip=skip,
+        limit=page_size,
+    )
+    total_count = await news.get_search_news_count(
+        db,
+        keyword=keyword,
+        category_id=category_id,
+    )
+    has_more = total_count > skip + page_size
+    return success_response("搜索成功", {
+        "list": news_list,
+        "total": total_count,
+        "hasMore": has_more,
+        "keyword": keyword,
+        "categoryId": category_id,
+    })
