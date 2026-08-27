@@ -1,23 +1,24 @@
-pydantic
+# Web
+fastapi
+uvicorn[standard]
+
+# Database
+sqlalchemy
+aiomysql
+greenlet
+
+# Cache
+redis
+
+# Auth
+passlib[bcrypt]
+bcrypt
+
+# AI / Agent
 python-dotenv
-rank-bm25
-langchain[openai]
-langchain-community
-langchain-mcp-adapters
-langchain-text-splitters
+pydantic
+langchain-openai
 langgraph
-langgraph-cli[inmem]
-langgraph-supervisor
 langgraph-checkpoint-sqlite
-langgraph-checkpoint-redis
-langmem
-ipynbname
-fastmcp
-bs4
-scikit-learn
-supervisor
-jieba
-dashscope
 tavily-python
 ddgs
-deepagents

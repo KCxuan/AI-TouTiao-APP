@@ -4,16 +4,18 @@ from typing import Dict, List
 import json
 from typing import Optional
 
-REDIS_HOST = 'localhost'
-REDIS_PORT = 6379
-REDIS_DB = 0
+from config.env import require_env
+
+REDIS_HOST = require_env("REDIS_HOST")
+REDIS_PORT = int(require_env("REDIS_PORT"))
+REDIS_DB = int(require_env("REDIS_DB"))
 
 # 创建 Redis 的连接对象
 redis_client = redis.Redis(
-    host=REDIS_HOST, 
-    port=REDIS_PORT, 
-    db=REDIS_DB, 
-    decode_responses=True
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=REDIS_DB,
+    decode_responses=True,
 )
 
 """

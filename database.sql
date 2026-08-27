@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS `news` (
   `content` TEXT NOT NULL COMMENT '新闻内容',
   `image` VARCHAR(255) NULL DEFAULT NULL COMMENT '封面图片URL',
   `author` VARCHAR(50) NULL DEFAULT NULL COMMENT '作者',
-  `user_id` INT UNSIGNED NULL COMMENT '发布者用户ID' AFTER `author`,
+  `user_id` INT UNSIGNED NULL COMMENT '发布者用户ID',
   `category_id` INT UNSIGNED NOT NULL COMMENT '分类ID',
   `views` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '浏览量',
   `publish_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发布时间',
@@ -155,6 +155,25 @@ CREATE TABLE IF NOT EXISTS `ai_chat` (
     ON DELETE CASCADE
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI聊天记录表';
+
+-- 新闻研究任务表（LangGraph thread 与登录用户的对应关系）
+CREATE TABLE IF NOT EXISTS `research_run` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '任务ID',
+  `thread_id` VARCHAR(36) NOT NULL COMMENT 'LangGraph thread_id',
+  `user_id` INT UNSIGNED NOT NULL COMMENT '用户ID',
+  `user_input` TEXT NOT NULL COMMENT '研究主题',
+  `status` ENUM('waiting_review', 'completed', 'abandoned')
+    NOT NULL DEFAULT 'waiting_review' COMMENT '任务状态',
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `thread_id_UNIQUE` (`thread_id`),
+  INDEX `idx_research_run_user_status` (`user_id`, `status`),
+  CONSTRAINT `fk_research_run_user`
+    FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='新闻研究任务表';
 
 -- 初始化数据
 -- 插入默认新闻分类

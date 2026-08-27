@@ -21,22 +21,15 @@ http://127.0.0.1:8000
 
 ## 本地启动
 
-在项目根目录使用 PowerShell 启动后端：
+启动后端前，在项目根目录复制 `.env.example` 为 `.env`，填写 MySQL / Redis；调用 AI 时再填写 LLM 与 Tavily。完整变量列表见 `.env.example`。`.env` 不应提交到版本控制。
+
+启动示例：
 
 ```powershell
 & .\.venv\Scripts\python.exe -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-启动前应确保 MySQL 配置可用。调用 AI 接口时，还需要在项目根目录的 `.env` 中配置以下变量：
-
-```dotenv
-LLM_API_KEY=...
-LLM_MODEL_ID=...
-LLM_BASE_URL=...
-TAVILY_API_KEY=...
-```
-
-`.env` 不应提交到版本控制。
+详细步骤（导入 `database.sql`、PowerShell 注意点、先注册再使用 AI）见仓库根目录 `README.md`。
 
 ## 请求约定
 

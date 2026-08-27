@@ -1,21 +1,26 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import URL
 
+from config.env import require_env
+
 DATABASE_URL = URL.create(
     drivername="mysql+aiomysql",
-    username="root",
-    password="Aa20051030",
-    host="127.0.0.1",
-    port="3306",
-    database="news_app",
-    query={"charset": "utf8mb4"}
+    username=require_env("MYSQL_USER"),
+    password=require_env("MYSQL_PASSWORD", allow_empty=True),
+    host=require_env("MYSQL_HOST"),
+    port=int(require_env("MYSQL_PORT")),
+    database=require_env("MYSQL_DATABASE"),
+    query={"charset": "utf8mb4"},
 )
 
-async_engine = create_async_engine(DATABASE_URL, echo=True, pool_size=10, max_overflow=20)
-async_session = async_sessionmaker(async_engine, expire_on_commit=False, class_=AsyncSession)
+async_engine = create_async_engine(
+    DATABASE_URL, echo=True, pool_size=10, max_overflow=20
+)
+async_session = async_sessionmaker(
+    async_engine, expire_on_commit=False, class_=AsyncSession
+)
 
 
-# 写一个依赖项，用户获取数据库会话
 async def get_database():
     async with async_session() as session:
         try:
@@ -24,4 +29,3 @@ async def get_database():
         except Exception as e:
             await session.rollback()
             raise e
-    
