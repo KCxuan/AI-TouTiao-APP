@@ -952,11 +952,13 @@ DELETE /api/history/delete/1
 
 ### AI 助手模块
 
-当前 AI 模块提供六个同步接口，**全部需要登录**：
+当前 AI 模块提供八个同步接口，**全部需要登录**：
 
 | 功能 | 方法 | 接口地址 | 认证 |
 |------|------|----------|------|
 | 普通对话 | POST | `/api/ai/chat` | 需要 |
+| 恢复最近对话 | GET | `/api/ai/chat/history` | 需要 |
+| 清空对话记录 | DELETE | `/api/ai/chat/history` | 需要 |
 | 自动选择模式 | POST | `/api/ai/auto` | 需要 |
 | 发起深度研究 | POST | `/api/ai/research/start` | 需要 |
 | 审核研究草稿 | POST | `/api/ai/research/{thread_id}/review` | 需要 |
@@ -965,7 +967,7 @@ DELETE /api/history/delete/1
 
 这些接口当前均等待模型或研究流程执行结束后一次性返回 JSON，不使用 SSE 或 WebSocket。普通对话不会搜索新闻。深度研究先按实体关键词检索站内新闻，不足再用 Tavily 补齐，并生成带来源的报告。
 
-前端 `/ai` 路由需要登录；进入页面时调用 `GET /api/ai/research/current` 恢复待审核草稿或最近已完成报告；「清空记录」调用 `DELETE /api/ai/research/current`。
+前端 `/ai` 路由需要登录；进入页面时先调用 `GET /api/ai/chat/history` 恢复最近对话，再调用 `GET /api/ai/research/current` 把研究报告追加在对话之后。「清空记录」同时调用 `DELETE /api/ai/chat/history` 与 `DELETE /api/ai/research/current`。
 
 #### 1. 普通 AI 对话
 
@@ -1014,6 +1016,64 @@ DELETE /api/history/delete/1
   - 后端最多使用 `history` 中最后 20 条消息。
   - `history` 不应重复放入本次 `message`。
   - Chat 模式不会调用新闻搜索工具；涉及实时新闻、多来源对比或可追溯证据时应使用 Research。
+  - LLM 成功返回后，将本轮 `message` 与 `answer` 写入 `ai_chat`。写入失败时接口仍返回本次 `answer`，终端会打印「保存对话失败」。
+  - 仅明确调用本接口时落库；`POST /api/ai/auto` 即使分成 chat 也不写入 `ai_chat`。
+
+#### 1.1 恢复最近对话
+
+- **接口地址**：`GET /api/ai/chat/history`
+- **请求头**：需要认证
+- **请求参数**：
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| limit | int | 否 | 恢复的最近问答轮数，默认 20，范围 1–50 |
+
+- **响应示例**：
+
+```json
+{
+  "code": 200,
+  "message": "已获取最近对话",
+  "data": {
+    "list": [
+      {
+        "id": 12,
+        "message": "什么是 Agent？",
+        "response": "Agent 是能够根据目标采取行动的系统。",
+        "created_at": "2026-08-30T19:00:00"
+      }
+    ]
+  }
+}
+```
+
+- **说明**：
+  - `list` 按时间正序（先问先出），便于直接渲染对话气泡。
+  - 没有记录时 `list` 为空数组。
+  - 前端进入 `/ai` 时调用此接口，再追加研究报告气泡。
+
+#### 1.2 清空对话记录
+
+- **接口地址**：`DELETE /api/ai/chat/history`
+- **请求头**：需要认证
+- **请求参数**：无
+
+- **响应示例**：
+
+```json
+{
+  "code": 200,
+  "message": "对话记录已清空",
+  "data": {
+    "cleared": 3
+  }
+}
+```
+
+- **说明**：
+  - 硬删除当前登录用户在 `ai_chat` 中的全部行。
+  - 前端「清空记录」会与 `DELETE /api/ai/research/current` 一并调用。
 
 #### 2. 发起深度研究
 
@@ -1195,7 +1255,7 @@ DELETE /api/history/delete/1
 - **说明**：
   - 报告正文来自 LangGraph SQLite 检查点，任务归属来自 MySQL `research_run`。
   - 检查点缺失时，该行会被标为 `abandoned`，接口返回 `data: null`。
-  - 前端进入 `/ai` 时调用此接口，用于恢复待审核草稿或已完成报告。
+  - 前端进入 `/ai` 时先恢复对话，再调用此接口；有研究任务时把报告气泡追加在对话之后，不再覆盖聊天。
 
 #### 5. 清空当前研究
 
@@ -1217,7 +1277,7 @@ DELETE /api/history/delete/1
 
 - **说明**：
   - 将当前用户所有 `waiting_review` 和 `completed` 记录改为 `abandoned`（软删除），行仍保留。
-  - 前端「清空记录」走此接口；页面上本地「放弃审核」不会调用它，因此刷新后仍可能恢复该草稿。
+  - 前端「清空记录」会同时调用此接口与 `DELETE /api/ai/chat/history`；页面上本地「放弃审核」不会调用它们，因此刷新后仍可能恢复该草稿。
 
 #### 6. 自动选择模式
 
@@ -1298,7 +1358,7 @@ Auto 会返回 `chat`、`research` 或 `clarify`，并且三个结果字段中�
 ```
 
 - **说明**：
-  - Auto 的 Chat 分支会使用 `history`；Research 分支当前只把本次 `message` 作为研究目标，不读取 `history`。
+  - Auto 的 Chat 分支会使用 `history`，但不写入 `ai_chat`；Research 分支当前只把本次 `message` 作为研究目标，不读取 `history`。
   - Research 分支由 Router 调用 `start_research_for_user`，与直接调用 `/api/ai/research/start` 一样会写入 `research_run`。
   - Clarify 只返回澄清问题，不在后端保存待澄清状态。客户端收到用户补充后，应组合成完整问题并重新调用 `/api/ai/auto`。
 
@@ -1306,7 +1366,8 @@ Auto 会返回 `chat`、`research` 或 `clarify`，并且三个结果字段中�
 
 - 前端当前为 Chat 设置 60 秒超时，为 Auto、Research 启动和审核设置 300 秒超时；其他客户端也应为同步研究请求设置单独的长超时。
 - Research 使用 LangGraph `SqliteSaver`（`data/research_checkpoints.db`）保存图状态，使用 MySQL `research_run` 保存任务归属。进程重启后，属于当前用户的 `thread_id` 仍可通过 `GET /current` 恢复。
-- Chat 消息仍不写入 `ai_chat` 表。研究报告正文在检查点中，任务元数据在 `research_run`。
+- 明确使用 Chat 模式时，成功回复写入 MySQL `ai_chat`；落库失败仍返回 `answer`。Auto / Research 不写该表。研究报告正文在检查点中，任务元数据在 `research_run`。
+- 进入 `/ai` 时 `GET /api/ai/chat/history` 恢复最近对话，再 `GET /api/ai/research/current` 追加研究报告。
 - 研究证据来自站内标题/简介摘要和 Tavily 新闻摘要，不抓取站外正文，也不读取收藏或浏览历史。
 - 字段缺失、类型错误或非法枚举值返回 HTTP 422，格式见文档开头。
 - 审核他人任务返回 HTTP 403；对非待审核任务提交审核返回 HTTP 409。

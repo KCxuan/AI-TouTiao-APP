@@ -1,14 +1,24 @@
+import asyncio
+
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
     HumanMessage,
     SystemMessage,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from crud.chat import (
+    clear_ai_chats,
+    create_ai_chat,
+    list_recent_ai_chats,
+)
 from new_research_agent.llm import model
 from schemas.chat import (
+    ChatHistoryResult,
     ChatMessage,
     ChatResult,
+    ChatTurn,
 )
 
 
@@ -42,19 +52,19 @@ def generate_chat_reply(
         if item.role == "user":
             model_messages.append(
                 HumanMessage(
-                    content=item.content,
+                    content=item.content
                 )
             )
         else:
             model_messages.append(
                 AIMessage(
-                    content=item.content,
+                    content=item.content
                 )
             )
 
     model_messages.append(
         HumanMessage(
-            content=message,
+            content=message
         )
     )
 
@@ -73,3 +83,57 @@ def generate_chat_reply(
     return ChatResult(
         answer=response.content.strip(),
     )
+
+
+async def reply_and_persist_chat(
+    user_id: int,
+    message: str,
+    history: list[ChatMessage],
+    db: AsyncSession,
+) -> ChatResult:
+    """生成回复；仅 Chat 模式写入 ai_chat。落库失败不影响返回。"""
+
+    result = await asyncio.to_thread(
+        generate_chat_reply,
+        message,
+        history,
+    )
+
+    try:
+        await create_ai_chat(
+            user_id=user_id,
+            message=message,
+            response=result.answer,
+            db=db,
+        )
+    except Exception as exc:
+        print(f"保存对话失败，仍返回本次回答：{exc}")
+        await db.rollback()
+
+    return result
+
+
+async def get_chat_history_for_user(
+    user_id: int,
+    limit: int,
+    db: AsyncSession,
+) -> ChatHistoryResult:
+    rows = await list_recent_ai_chats(user_id, limit, db)
+    return ChatHistoryResult(
+        list=[
+            ChatTurn(
+                id=row.id,
+                message=row.message,
+                response=row.response,
+                created_at=row.created_at,
+            )
+            for row in rows
+        ]
+    )
+
+
+async def clear_chat_history_for_user(
+    user_id: int,
+    db: AsyncSession,
+) -> int:
+    return await clear_ai_chats(user_id, db)

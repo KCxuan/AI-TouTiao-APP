@@ -3,7 +3,9 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import {
   autoWithAI,
   chatWithAI,
+  clearChatHistory,
   clearCurrentResearch,
+  getChatHistory,
   getCurrentResearch,
   reviewResearch,
   startResearch
@@ -108,7 +110,7 @@ const interfaceLocked = computed(
 
 const inputPlaceholder = computed(() => {
   if (restoring.value) {
-    return '正在恢复未完成的研究'
+    return '正在恢复上次的对话'
   }
   if (phase.value === 'waiting_review') {
     return '请先审核上方的研究报告草稿'
@@ -230,22 +232,71 @@ function restoreResearch(research) {
     label: '深度研究'
   }
 
-  messages.value = [userMessage, reply]
+  messages.value.push(userMessage, reply)
   const restoredLabel =
     research.status === 'completed' ? '深度研究 · 已完成' : '深度研究 · 已恢复'
   setResearchReply(reply, research, restoredLabel)
   scrollToBottom()
 }
 
+function restoreChatTurns(turns) {
+  const restored = []
+  for (const turn of turns || []) {
+    restored.push({
+      id: `chat-${turn.id}-user`,
+      role: 'user',
+      kind: 'text',
+      content: turn.message,
+      historyEligible: true,
+      requestedMode: 'chat',
+      modeLabel: '对话'
+    })
+    restored.push({
+      id: `chat-${turn.id}-assistant`,
+      role: 'assistant',
+      kind: 'text',
+      content: turn.response,
+      historyEligible: true,
+      requestedMode: 'chat',
+      resolvedMode: 'chat',
+      label: '普通对话'
+    })
+  }
+  return restored
+}
+
 onMounted(async () => {
   try {
-    const research = await getCurrentResearch()
-    if (research && research.status === 'waiting_review') {
+    const [historyResult, research] = await Promise.all([
+      getChatHistory(),
+      getCurrentResearch()
+    ])
+
+    messages.value = restoreChatTurns(historyResult?.list)
+
+    const restoredChat = (historyResult?.list || []).length > 0
+    const hasResearch =
+      research &&
+      (research.status === 'waiting_review' || research.status === 'completed')
+
+    if (hasResearch) {
       restoreResearch(research)
-      toast('已恢复未完成的研究报告')
-    } else if (research && research.status === 'completed') {
-      restoreResearch(research)
-      toast('已恢复完成的研究报告')
+      if (research.status === 'waiting_review') {
+        toast(
+          restoredChat
+            ? '已恢复最近对话和未完成的研究报告'
+            : '已恢复未完成的研究报告'
+        )
+      } else {
+        toast(
+          restoredChat
+            ? '已恢复最近对话和完成的研究报告'
+            : '已恢复完成的研究报告'
+        )
+      }
+    } else if (restoredChat) {
+      toast('已恢复最近对话')
+      scrollToBottom()
     }
   } catch (error) {
     toast(error.message, 'error')
@@ -452,14 +503,14 @@ async function clearConversation() {
   if (messages.value.length === 0) return
   if (
     !window.confirm(
-      '确定清空当前记录吗？未完成和已完成的研究都会从可恢复列表中移除，之后切走再回来不会再显示。'
+      '确定清空当前记录吗？已保存的对话、未完成和已完成的研究都不会再恢复。'
     )
   ) {
     return
   }
 
   try {
-    await clearCurrentResearch()
+    await Promise.all([clearCurrentResearch(), clearChatHistory()])
     messages.value = []
     pendingClarification.value = null
     activeResearchMessageId.value = null
@@ -644,9 +695,9 @@ function parseReport(markdown) {
         >
           <div v-if="restoring" class="welcome">
             <p class="welcome-number">00 / RESTORE</p>
-            <h2>正在恢复研究报告…</h2>
+            <h2>正在恢复上次的对话…</h2>
             <p class="welcome-description">
-              未完成的审核草稿，或已通过但未清空的报告，都会重新放到这里。
+              最近的普通对话，以及未完成或已完成的研究报告，都会重新放到这里。
             </p>
           </div>
 

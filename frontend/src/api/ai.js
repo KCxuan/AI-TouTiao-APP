@@ -31,6 +31,23 @@ export async function autoWithAI(message, history = []) {
 }
 
 /**
+ * 读取当前用户最近若干轮 Chat 问答（时间正序）。
+ * 仅包含明确使用对话模式写入的记录。
+ */
+export async function getChatHistory(limit = 20) {
+  const response = await request.get('/api/ai/chat/history', {
+    params: { limit }
+  })
+  return response.data
+}
+
+/** 清空当前用户已落库的 Chat 记录。 */
+export async function clearChatHistory() {
+  const response = await request.delete('/api/ai/chat/history')
+  return response.data
+}
+
+/**
  * 读取当前登录用户应显示的研究：
  * 优先待审核草稿，否则最近一份已完成报告。
  * 没有可显示任务时返回 null。

@@ -40,3 +40,21 @@ class ChatResult(BaseModel):
     """普通对话结果。"""
 
     answer: str
+
+
+from datetime import datetime
+
+
+class ChatTurn(BaseModel):
+    """数据库中的一轮问答。"""
+
+    id: int
+    message: str
+    response: str
+    created_at: datetime
+
+
+class ChatHistoryResult(BaseModel):
+    """进入页面时恢复的最近对话。"""
+
+    list: list[ChatTurn] = Field(default_factory=list)
