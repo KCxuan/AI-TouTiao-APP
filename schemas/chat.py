@@ -57,4 +57,4 @@ class ChatTurn(BaseModel):
 class ChatHistoryResult(BaseModel):
     """进入页面时恢复的最近对话。"""
 
-    list: list[ChatTurn] = Field(default_factory=list)
+    list: list[ChatTurn]
