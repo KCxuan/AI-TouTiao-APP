@@ -26,7 +26,7 @@ copy .env.example .env
 
 Linux / macOS：`cp .env.example .env`。
 
-`.env` 里至少改 `MYSQL_PASSWORD`（自己设一个即可）。`MYSQL_HOST` / `REDIS_HOST` 保持示例值就行：本机开发连 `127.0.0.1` / `localhost`；Docker 会在容器内自动改成 `mysql` / `redis`。
+`.env` 里至少改 `MYSQL_PASSWORD`（自己设一个即可；Docker 里它会成为容器 MySQL 的 root 密码）。`MYSQL_HOST` / `REDIS_HOST` 保持示例值就行：本机开发连 `127.0.0.1` / `localhost`；Docker 会在容器内自动改成 `mysql` / `redis`。第一次成功启动后不要改这个密码；改了必须先 `docker compose down -v` 再 `up`，否则 MySQL 对不上旧数据卷。
 
 要用 AI 对话或深度研究，再填写：
 
@@ -51,7 +51,7 @@ TAVILY_API_KEY=...
 docker compose up -d --build
 ```
 
-第一次会拉镜像、构建前后端，可能需要十几分钟。之后再启动一般只用：
+第一次会拉镜像、构建前后端，可能需要十几分钟。用 `docker compose ps` 确认 `mysql`、`api` 为 healthy 后再打开浏览器。之后再启动一般只用：
 
 ```powershell
 docker compose up -d
@@ -70,7 +70,9 @@ docker compose logs -f
 docker compose down
 ```
 
-`down` 不要加 `-v`，否则容器里的新闻库和研究记录会被清掉。若某次启动失败过（例如 MySQL 容器立刻退出），或刚拉取了修复启动问题的更新，需要先 `docker compose down -v` 清掉半成品数据卷，再重新 `up`。官方镜像会在空卷第一次启动时自动导入 `database.sql`。
+`down` 不要加 `-v`，否则容器里的新闻库和研究记录会被清掉。空数据卷第一次启动时，官方镜像会自动导入 `database.sql`，不必再手动执行 SQL。
+
+需要重新导入种子数据时（启动失败、标题中文乱码、或想清空容器库），先 `docker compose down -v` 再 `up`。只改了 `.env` 里的 AI 密钥时，执行 `docker compose up -d` 即可，不必 `--build`，也不要 `-v`。
 
 Compose **不会占用** 本机 `3306` / `6379`，可以和本机已有的 MySQL、Redis 同时存在。测 Docker 时用 80 端口，测本机开发时用 5173，不要混在一个窗口里对照。
 
