@@ -1,4 +1,7 @@
 -- 新闻资讯应用数据库设计
+-- 官方镜像导入 .sql 时客户端默认可能是 latin1，必须先声明 utf8mb4。
+SET NAMES utf8mb4;
+
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS news_app DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
