@@ -11,8 +11,10 @@ greenlet
 redis
 
 # Auth
+# bcrypt 4.1+ / 5.x 会在 passlib 探测后端时抛 72-byte 错误，注册失败。
+# 与本机已验证的 4.0.1 对齐。
 passlib[bcrypt]
-bcrypt
+bcrypt==4.0.1
 
 # AI / Agent
 python-dotenv

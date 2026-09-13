@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Path, Query, HTTPException, Request, Depends
 from pydantic import BaseModel, Field
 from fastapi.responses import HTMLResponse, FileResponse
@@ -13,25 +15,32 @@ from utils.exception_handlers import register_exception_handlers
 from fastapi.middleware.cors import CORSMiddleware
 
 
-app = FastAPI()
-
-# 注册全局异常处理
-register_exception_handlers(app)
-
-# 设置允许跨域的源列表
-origins = [
+DEFAULT_CORS_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5174",
 ]
 
+
+def cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ORIGINS", "").strip()
+    if not raw:
+        return DEFAULT_CORS_ORIGINS
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+app = FastAPI()
+
+# 注册全局异常处理
+register_exception_handlers(app)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, # 允许访问源
-    allow_credentials=True, #允许携带cookie
-    allow_methods=["*"], #允许的请求方法
-    allow_headers=["*"], #允许的请求头
+    allow_origins=cors_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

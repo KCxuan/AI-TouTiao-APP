@@ -1,8 +1,10 @@
 import axios from 'axios'
 
-// 后端 FastAPI 服务地址（main.py CORS 已放行 5173 端口）
+// 本机 Vite 默认直连 8000；Docker 构建时把 VITE_API_BASE 设为 /，走当前站点 /api。
+const apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
+
 const request = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: apiBase,
   timeout: 15000
 })
 
@@ -28,7 +30,7 @@ function extractErrorMessage(error) {
     if (resData.detail) return resData.detail
   }
   if (error.code === 'ECONNABORTED') return '请求处理超时，请稍后重试'
-  if (!error.response) return '网络异常，无法连接后端服务（localhost:8000）'
+  if (!error.response) return '网络异常，无法连接后端服务'
   return `请求失败（HTTP ${error.response.status}）`
 }
 

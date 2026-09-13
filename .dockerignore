@@ -1,0 +1,15 @@
+.git
+.venv
+__pycache__
+*.pyc
+.env
+*.local
+.vscode
+.idea
+data
+frontend
+*.md
+database.sql
+.dockerignore
+docker-compose.yml
+Dockerfile
