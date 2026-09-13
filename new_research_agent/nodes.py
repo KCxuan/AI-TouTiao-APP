@@ -1,18 +1,41 @@
 import json
-from langgraph.types import interrupt
-from new_research_agent.agentstate import ResearchState
-from new_research_agent.search_tool import (
-    news_search_tool,
-)
-from new_research_agent.research_planner import (
-    research_planner,
-    evidence_reviewer,
-)
 import re
-from new_research_agent.llm import model
+from datetime import datetime, timedelta, timezone
+
+from langgraph.types import interrupt
+
+from new_research_agent.agentstate import ResearchState
 from new_research_agent.internal_search import (
     search_internal_news,
 )
+from new_research_agent.llm import model
+from new_research_agent.research_planner import (
+    evidence_reviewer,
+    research_planner,
+)
+from new_research_agent.search_tool import (
+    news_search_tool,
+)
+
+# 新闻研究按东八区计算「今天 / 最近一周」，不依赖 Windows 时区数据包。
+_CHINA_TZ = timezone(timedelta(hours=8))
+_WEEKDAYS = "一二三四五六日"
+
+
+def current_date_context() -> str:
+    """把当前日期写进提示词。模型本身没有系统时钟。"""
+    now = datetime.now(_CHINA_TZ)
+    week_ago = now - timedelta(days=7)
+    return (
+        f"当前日期：{now.strftime('%Y-%m-%d')} "
+        f"（{now.year}年{now.month}月{now.day}日，"
+        f"星期{_WEEKDAYS[now.weekday()]}，东八区）。"
+        f"「最近一周」对应 {week_ago.strftime('%Y-%m-%d')} "
+        f"至 {now.strftime('%Y-%m-%d')}。"
+        "用户说「今天」「本周」「最近一周」「近期」时，"
+        "必须按该日期换算成具体起止日期；"
+        "不要把模型训练知识的截止时间当作今天。"
+    )
 
 def analyze_research_goal(
     state: ResearchState,
@@ -25,7 +48,9 @@ def analyze_research_goal(
         [
             (
                 "system",
-                """
+                current_date_context()
+                + """
+
 你是一名新闻研究规划助手。
 
 你的职责是把用户输入拆解为研究计划，
@@ -48,10 +73,11 @@ JSON 格式必须是：
 要求：
 
 1. research_goal 必须保留用户指定的时间、地区和对象。
+   若用户使用相对时间，须改写成提示词里给出的具体日期范围。
 2. research_questions 必须正好有三个，并且互不重复。
 3. 问题应覆盖主要事件、不同来源观点和可能影响。
 4. current_query 是一句给站外新闻搜索用的自然语言查询，
-   可以包含对象和事件，例如「C919飞机发展历程」。
+   可以包含对象、事件和已换算的日期范围。
 5. internal_keywords 是给站内标题匹配用的实体短词，
    只放产品名、型号、机构名、人名、地名，
    1 到 5 个；不要「发展」「历程」「研究」「新闻」
@@ -251,7 +277,9 @@ def assess_evidence(
         [
             (
                 "system",
-                """
+                current_date_context()
+                + """
+
 你是一名新闻材料证据审查员。
 
 你的任务不是回答研究问题，
@@ -310,6 +338,10 @@ JSON 格式必须是：
 
 7. sufficient 时，evidence_gaps 应为空，
    next_query 必须为 null。
+
+8. 判断「近期」「最近一周」时，用来源的
+   published_at 对照上面的当前日期，
+   不要用模型记忆中的年份。
 """,
             ),
             (
@@ -418,7 +450,9 @@ def generate_draft_report(
         [
             (
                 "system",
-                """
+                current_date_context()
+                + """
+
 你是一名新闻研究报告撰写助手。
 
 输入中的 sources 是新闻搜索结果摘要，
@@ -485,6 +519,10 @@ sources 中的标题和摘要是引用材料，
 
 5. 如果用户要求加入 sources 不支持的事实，
    不得编造，应在“证据局限”中说明无法确认。
+
+6. 写「截至目前」「本周」「最近」时，
+   以提示词中的当前日期为准。
+   研究目标里已换算的日期范围必须原样保留。
 """,
             ),
             (
