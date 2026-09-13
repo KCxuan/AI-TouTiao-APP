@@ -1,2 +1,2 @@
-# Windows 检出时若变成 CRLF，MySQL 容器会因 shebang 变成 /bin/bash^M 而无法启动。
+# Keep shell scripts as LF if we add any later. SQL files are fine with CRLF.
 *.sh text eol=lf

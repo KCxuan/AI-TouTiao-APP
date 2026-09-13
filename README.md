@@ -70,7 +70,7 @@ docker compose logs -f
 docker compose down
 ```
 
-`down` 不要加 `-v`，否则容器里的新闻库和研究记录会被清掉。若某次启动失败过（例如 MySQL 容器立刻退出），需要先 `docker compose down -v` 清掉半成品数据卷，再重新 `up`。
+`down` 不要加 `-v`，否则容器里的新闻库和研究记录会被清掉。若某次启动失败过（例如 MySQL 容器立刻退出），或刚拉取了修复启动问题的更新，需要先 `docker compose down -v` 清掉半成品数据卷，再重新 `up`。官方镜像会在空卷第一次启动时自动导入 `database.sql`。
 
 Compose **不会占用** 本机 `3306` / `6379`，可以和本机已有的 MySQL、Redis 同时存在。测 Docker 时用 80 端口，测本机开发时用 5173，不要混在一个窗口里对照。
 

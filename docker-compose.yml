@@ -9,8 +9,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./docker/mysql/init-utf8.sh:/docker-entrypoint-initdb.d/01-init-utf8.sh:ro
-      - ./database.sql:/opt/seed/database.sql:ro
+      - ./database.sql:/docker-entrypoint-initdb.d/01-database.sql:ro
     healthcheck:
       test:
         [
